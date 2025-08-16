@@ -2,6 +2,15 @@ import { z } from 'zod';
 import { PrismaClient } from '../generated/prisma';
 import { publicProcedure, router } from '../lib/trpc';
 
+// Import all routers
+import { authRouter } from './auth';
+import { brandRouter } from './brand';
+import { scanRouter } from './scan';
+import { reportRouter } from './report';
+import { userRouter } from './user';
+import { subscriptionRouter } from './subscription';
+import { publicRouter } from './public';
+
 const prisma = new PrismaClient();
 
 export const appRouter = router({
@@ -10,11 +19,12 @@ export const appRouter = router({
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      service: 'trpc-api',
+      service: 'checkaivisibility-api',
+      version: '1.0.0',
     };
   }),
 
-  // Get current user (placeholder - integrate with better-auth)
+  // Legacy endpoints (can be removed later)
   getUser: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
     const user = await prisma.user.findUnique({
       where: { id: input.id },
@@ -24,12 +34,13 @@ export const appRouter = router({
         email: true,
         image: true,
         createdAt: true,
+        subscription: true,
+        scansLeft: true,
       },
     });
     return user;
   }),
 
-  // Create user (placeholder - better-auth handles this)
   createUser: publicProcedure
     .input(
       z.object({
@@ -40,18 +51,33 @@ export const appRouter = router({
     )
     .mutation(async ({ input }) => {
       const user = await prisma.user.create({
-        data: input,
+        data: {
+          ...input,
+          subscription: 'FREE',
+          scansLeft: 3,
+        },
         select: {
           id: true,
           name: true,
           email: true,
           image: true,
           createdAt: true,
+          subscription: true,
+          scansLeft: true,
         },
       });
       return user;
     }),
+
+  // Main router structure
+  auth: authRouter,
+  brand: brandRouter,
+  scan: scanRouter,
+  report: reportRouter,
+  user: userRouter,
+  subscription: subscriptionRouter,
+  public: publicRouter,
 });
 
-// Export the router type for frontend
+// Export the router type for client-side type safety
 export type AppRouter = typeof appRouter;

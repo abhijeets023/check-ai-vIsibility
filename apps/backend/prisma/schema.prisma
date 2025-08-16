@@ -21,9 +21,17 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // User profile
+  subscription SubscriptionTier @default(FREE)
+  scansLeft    Int              @default(3)
+
   // Better-auth relations
   accounts Account[]
   sessions Session[]
+
+  // Business relations
+  brands Brand[]
+  scans  VisibilityScan[]
 
   @@map("users")
 }
@@ -67,4 +75,105 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// Core business models
+model Brand {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  name        String
+  websiteUrl  String
+  description String?
+  competitors String[] // Array of competitor names
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scans VisibilityScan[]
+
+  @@map("brands")
+}
+
+model VisibilityScan {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String     @db.ObjectId
+  brandId      String     @db.ObjectId
+  status       ScanStatus @default(PENDING)
+  overallScore Int? // 0-100
+  createdAt    DateTime   @default(now())
+  completedAt  DateTime?
+
+  // Scan configuration
+  competitors String[] // Competitor names for this scan
+
+  // Results summary
+  totalMentions  Int?
+  averageRank    Float?
+  accuracyScore  Int?
+  sentimentScore String? // positive, neutral, negative
+
+  // Relations
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand   Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  results ScanResult[]
+  reports ScanReport[]
+
+  @@map("visibility_scans")
+}
+
+model ScanResult {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  scanId   String @db.ObjectId
+  provider String // "openai", "perplexity", etc.
+  prompt   String // The query sent to AI
+  query    String // Processed query
+
+  // Results
+  mentioned    Boolean
+  rankPosition Int? // Position in list (if applicable)
+  snippet      String? // Text snippet from AI response
+  citations    String[] // URLs cited (if available)
+  fullResponse String // Complete AI response
+  accuracy     String? // "accurate", "inaccurate", "partial"
+  sentiment    String? // "positive", "neutral", "negative"
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  scan VisibilityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@map("scan_results")
+}
+
+model ScanReport {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  scanId        String   @db.ObjectId
+  reportType    String   @default("pdf") // "pdf", "json"
+  fileName      String // Generated filename
+  filePath      String // Storage path/URL
+  shareToken    String?  @unique // For public sharing
+  downloadCount Int      @default(0)
+  isPublic      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  // Relations
+  scan VisibilityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@map("scan_reports")
+}
+
+// Enums
+enum ScanStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PRO
+  AGENCY
 }
