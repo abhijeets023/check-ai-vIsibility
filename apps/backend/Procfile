@@ -1,0 +1,2 @@
+# Railway Procfile for backend deployment
+web: npm run start
